@@ -91,9 +91,9 @@ function ec2_client_summary($ec2options) {
     if ($state == "running") {
       $ip = $item->instancesSet->item->ipAddress;
     } else {
-      $ip = "\t\t";
+      $ip = "";
     }
-    echo " * $id $type ($state) | $ip\t| $name\n";
+    printf(" * %10s %10s (%s) | %15s | %s\n", $id, $type, $state, $ip, $name);
   }
   echo "\n";
 }
@@ -142,31 +142,32 @@ function ec2_instance_detail($ec2options, $filter) {
       'Filter.1.Name' => 'volume-id',
       'Filter.1.Value.1' => $volumeId,
     );
+	  $lastsnapdates = array();
     $snapshots_response = $ec2->describe_snapshots($options);
     if (!$snapshots_response->isOK()) {
       logthis('ERROR', 'Non 200 response to ec2->describe_snapshots: ' . $response->body->Errors->Error->Message);
       $numsnapshots = "Could not determine snapshot data.";
+      array_push($lastsnapdates, "No snapshots.\n");
     } else {
       if (!isset($snapshots_response->body->snapshotSet->item)) {
-        $numsnapshots = "Could not determine snapshot data.";
+        $numsnapshots = 0;
+        array_push($lastsnapdates, "No snapshots.\n");
       } else {
         $numsnapshots = count($snapshots_response->body->snapshotSet->item);
-	$lastsnapdates = array();
-	#print_r($snapshots_response->body->snapshotSet);
-	while(count($lastsnapdates) < 3) {
-	  $last = count($snapshots_response->body->snapshotSet->item) - 1;
+	      while(count($lastsnapdates) < 3) {
+	        $last = count($snapshots_response->body->snapshotSet->item) - 1;
           $offset = count($lastsnapdates);
           $snapshot = $snapshots_response->body->snapshotSet->item[$last - $offset];
-	  if(preg_match("/(\d\d\d\d-\d\d-\d\d)T(\d\d:\d\d)/", $snapshot->startTime, $matches)) {
-	    array_push($lastsnapdates, $matches[1] . " " . $matches[2]);
-	  }
-	}
+	        if(preg_match("/(\d\d\d\d-\d\d-\d\d)T(\d\d:\d\d)/", $snapshot->startTime, $matches)) {
+	          array_push($lastsnapdates, $matches[1] . " " . $matches[2]);
+	        }
+	      }
       }
     }
     if(count($lastsnapdates) === 3) {
       array_push($block_devices, "$volumeId - $size GB - $deviceName ($description)\n\t  - $numsnapshots snapshots - last dated $lastsnapdates[0], $lastsnapdates[1], and $lastsnapdates[2]\n");
     } else {
-      array_push($block_devices, "$volumeId - $size GB - $deviceName ($description)\n\t  - ($numsnapshots snapshots)\n");
+      array_push($block_devices, "$volumeId - $size GB - $deviceName ($description)\n\t  - $numsnapshots snapshots\n");
     }
   }
   $state = $response->body->reservationSet->item->instancesSet->item->instanceState->name;
@@ -180,18 +181,15 @@ function ec2_instance_detail($ec2options, $filter) {
     $reversedns = "No IP, so no reverse DNS";
   }
   echo "\n";
-  echo "Instance $id\n";
-  echo "  IP:\t\t" . $ip . "\t\t\t";
-  echo "  Name:\t\t" . $name . "\n";
-  echo "  State:\t" . $state . "\t\t\t\t";
-  echo "  Type:\t\t" . $type . "\n";
-  echo "  AMI:\t\t" . $ami . "\t\t\t";
-  echo "  AZ:\t\t" . $az . "\n";
-  echo "  Groups:\t" . $security_groups . "\n";
-  echo "  Reverse DNS:\t" . $reversedns . "\n";
-  echo "  Disks: ";
+  printf("Instance %10s\n", $id);
+  printf("  IP:\t\t%-20s\t\tName: %-20s\n", $ip, $name);
+  printf("  State:\t%-20s\t\tType: %-20s\n", $state, $type);
+  printf("  AMI:\t\t%-20s\t\tAZ: %-20s\n", $ami, $az);
+  printf("  Groups:\t%-60s\n", $security_groups);
+  printf("  Reverse DNS:\t%-60s\n", $reversedns);
+  echo "  Disks: \n";
   foreach($block_devices as $volume) {
-    echo "\t\t$volume\n";
+    echo "    * $volume";
   }
   echo "\n";
 }
